@@ -17,6 +17,17 @@ on:
       required: false
       type: string
       default: 'ERROR'
+    terraformVersion:
+      description: "Terraform version to install"
+      required: false
+      type: string
+      default: '1.6.0'
+    terragruntVersion:
+      description: "Terragrunt version to install"
+      required: false
+      type: string
+      default: '0.54.0'
+
 
 jobs:
   terragrunt-job:
@@ -30,6 +41,35 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraformVersion }}
+        terraform_wrapper: false
+
+    - name: Setup Terragrunt
+      run: |
+        TERRAGRUNT_VERSION="${{ inputs.terragruntVersion }}"
+        echo "Installing Terragrunt version ${TERRAGRUNT_VERSION}..."
+        
+        # Download Terragrunt binary
+        wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64 -O terragrunt
+        
+        # Make executable
+        chmod +x terragrunt
+        
+        # Move to PATH
+        sudo mv terragrunt /usr/local/bin/terragrunt
+        
+        # Verify installation
+        terragrunt --version
+        terraform --version
+    - name: GCP Auth
+      uses: southwire/gh-actions-library/.github/actions/gcp/auth@main
+      with:
+        project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
+        workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
+        
     - name: Terragrunt Init
       uses: southwire/gh-actions-library/.github/actions/terragrunt/init@main
       with:
