@@ -69,9 +69,9 @@ jobs:
       with:
         project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
         workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
-        
+
     - name: Terragrunt Init
-      uses: southwire/gh-actions-library/.github/actions/terragrunt/init@main
+      uses: AjitPunchhiInutive/gh-actions-library/tree/main/.github/actions/terragrunt/init@main
       with:
         workingDirectory: ${{ inputs.workingDirectory }}
         environment: ${{ inputs.environment }}
@@ -79,21 +79,21 @@ jobs:
 
 
     - name: Terragrunt Validate
-      uses: southwire/gh-actions-library/.github/actions/terragrunt/validate@main
+      uses: AjitPunchhiInutive/gh-actions-library/tree/main/.github/actions/terragrunt/validate@main
       with:
         workingDirectory: ${{ inputs.workingDirectory }}
         environment: ${{ inputs.environment }}
         tfLog: ${{ inputs.tfLog }}
 
     - name: Terragrunt Lint
-      uses: southwire/gh-actions-library/.github/actions/terragrunt/lint@main
+      uses: sAjitPunchhiInutive/gh-actions-library/tree/main/.github/actions/terragrunt/lint@main
       with:
         workingDirectory: ${{ inputs.workingDirectory }}
         environment: ${{ inputs.environment }}
         tfLog: ${{ inputs.tfLog }}
 
     - name: Terragrunt Plan
-      uses: southwire/gh-actions-library/.github/actions/terragrunt/plan@main
+      uses: AjitPunchhiInutive/gh-actions-library/tree/main/.github/actions/terragrunt/plan@main
       with:
         workingDirectory: ${{ inputs.workingDirectory }}
         environment: ${{ inputs.environment }}
@@ -120,7 +120,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: GCP Auth
-      uses: southwire/gh-actions-library/.github/actions/gcp/auth@main
+      uses: AjitPunchhiInutive/gh-actions-library/tree/main/.github/actions/gcp/auth@main
       with:
         project_id:  ${{ secrets.GCP_PROD_PROJECT_ID }}
         workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
@@ -133,7 +133,7 @@ jobs:
 
     - name: Terragrunt Apply
       if: github.ref == 'refs/heads/main'
-      uses: southwire/gh-actions-library/.github/actions/terragrunt/apply@main
+      uses: AjitPunchhiInutive/gh-actions-library/tree/main/.github/actions/terragrunt/apply@main
       with:
         workingDirectory: ${{ inputs.workingDirectory }}
         environment: ${{ inputs.environment }}
