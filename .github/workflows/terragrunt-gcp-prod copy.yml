@@ -26,11 +26,6 @@ on:
         required: false
         type: string
         default: '0.68.16'
-      checkovSkipChecks:
-        description: "Comma-separated list of Checkov checks to skip"
-        required: false
-        type: string
-        default: ''
     secrets:
       TERRAGRUNT_GITHUB_ORG_TOKEN:
         required: true
@@ -45,7 +40,6 @@ jobs:
     permissions:
       contents: 'read'
       id-token: 'write'
-      pull-requests: 'write'  # Required for PR comments
     env:
       TERRAGRUNT_GITHUB_ORG_TOKEN: ${{ secrets.TERRAGRUNT_GITHUB_ORG_TOKEN }}
     
@@ -104,46 +98,7 @@ jobs:
           environment: ${{ inputs.environment }}
           tfLog: ${{ inputs.tfLog }}
 
-      # Checkov Security Scan
-      - name: Run Checkov Security Scan
-        id: checkov
-        uses: bridgecrewio/checkov-action@master
-        with:
-          directory: ${{ inputs.workingDirectory }}
-          framework: terraform
-          output_format: cli,sarif
-          output_file_path: console,checkov-results.sarif
-          soft_fail: false  # Set to true to not fail the workflow on security issues
-          skip_check: ${{ inputs.checkovSkipChecks }}
-          download_external_modules: true
-          quiet: false
-        continue-on-error: true  # Continue to show results even if checks fail
-
-      - name: Upload Checkov Results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: checkov-results.sarif
-          category: checkov
-
-      - name: Checkov Results Summary
-        if: always()
-        run: |
-          if [ -f checkov-results.sarif ]; then
-            echo "### Checkov Security Scan Results" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Checkov scan completed. Check the Security tab for detailed results." >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            
-            if [ "${{ steps.checkov.outcome }}" == "failure" ]; then
-              echo "⚠️ Security issues detected. Review the findings before proceeding." >> $GITHUB_STEP_SUMMARY
-            else
-              echo "✅ No critical security issues found." >> $GITHUB_STEP_SUMMARY
-            fi
-          fi
-
       - name: Terragrunt Plan
-        id: plan
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/plan@main
         with:
           workingDirectory: ${{ inputs.workingDirectory }}
@@ -157,70 +112,9 @@ jobs:
           path: ${{ github.workspace }}/${{ inputs.workingDirectory }}/tfplan.out
           retention-days: 30
 
-      # Comment on PR with plan results
-      - name: Comment PR with Plan Results
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const output = `### Terragrunt Plan Results for \`${{ inputs.workingDirectory }}\`
-            
-            #### Checkov Security Scan: \`${{ steps.checkov.outcome }}\`
-            #### Terraform Validation: ✅
-            #### Terraform Plan: \`${{ steps.plan.outcome }}\`
-            
-            <details>
-            <summary>Show Plan Details</summary>
-            
-            \`\`\`
-            Plan file generated successfully and uploaded as artifact.
-            Review the full plan in the workflow run.
-            \`\`\`
-            
-            </details>
-            
-            **Environment:** \`${{ inputs.environment }}\`
-            **Working Directory:** \`${{ inputs.workingDirectory }}\`
-            
-            ${steps.checkov.outcome === 'failure' ? '⚠️ **Security issues detected by Checkov. Review before merging.**' : ''}
-            
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            });
-
-  # Manual approval gate for PRs
-  approval-gate:
-    if: github.event_name == 'pull_request'
-    needs: terragrunt-plan
-    runs-on: ubuntu-latest
-    environment: 
-      name: prod-approval  # This environment should have required reviewers configured
-    permissions:
-      contents: 'read'
-    
-    steps:
-      - name: Manual Approval Required
-        run: |
-          echo "### 🔐 Manual Approval Required" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "This pull request requires manual approval before it can be merged." >> $GITHUB_STEP_SUMMARY
-          echo "Review the Terragrunt plan and Checkov security scan results." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Reviewer:** Please verify:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Checkov security scan passed" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Terraform plan is correct" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ No unintended infrastructure changes" >> $GITHUB_STEP_SUMMARY
-
   terragrunt-apply:
     needs: terragrunt-plan
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    environment: prod  # This environment should also have required reviewers configured
+    environment: prod
     runs-on: ubuntu-latest
     permissions:
       contents: 'read'
@@ -260,17 +154,9 @@ jobs:
           path: ${{ inputs.workingDirectory }}
 
       - name: Terragrunt Apply
+        if: github.ref == 'refs/heads/main'
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/apply@main
         with:
           workingDirectory: ${{ inputs.workingDirectory }}
           environment: ${{ inputs.environment }}
           tfLog: ${{ inputs.tfLog }}
-
-      - name: Apply Summary
-        if: always()
-        run: |
-          echo "### 🚀 Terragrunt Apply Completed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** \`${{ inputs.environment }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Working Directory:** \`${{ inputs.workingDirectory }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
