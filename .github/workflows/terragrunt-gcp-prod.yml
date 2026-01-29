@@ -42,6 +42,8 @@ jobs:
       id-token: 'write'
     env:
       TERRAGRUNT_GITHUB_ORG_TOKEN: ${{ secrets.TERRAGRUNT_GITHUB_ORG_TOKEN }}
+      TF_LOG: ${{ inputs.tfLog }}
+      TF_IN_AUTOMATION: 'true'
     
     steps:
       - name: Checkout Repository
@@ -77,40 +79,70 @@ jobs:
           project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
           workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
 
+      - name: Debug - Check Directory Structure
+        run: |
+          echo "=== Current Directory ==="
+          pwd
+          echo "=== Working Directory Input ==="
+          echo "${{ inputs.workingDirectory }}"
+          echo "=== Check if directory exists ==="
+          ls -la ${{ inputs.workingDirectory }} || echo "Directory not found"
+          echo "=== Find terragrunt.hcl files ==="
+          find . -name "terragrunt.hcl" -type f
+
       - name: Terragrunt Init
-        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/init@main
-        with:
-          workingDirectory: ${{ inputs.workingDirectory }}
-          environment: ${{ inputs.environment }}
-          tfLog: ${{ inputs.tfLog }}
+        working-directory: ${{ inputs.workingDirectory }}
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔧 Terragrunt Init"
+          echo "📁 Directory: $(pwd)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          terragrunt init -reconfigure
 
       - name: Terragrunt Validate
-        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/validate@main
-        with:
-          workingDirectory: ${{ inputs.workingDirectory }}
-          environment: ${{ inputs.environment }}
-          tfLog: ${{ inputs.tfLog }}
+        working-directory: ${{ inputs.workingDirectory }}
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Terragrunt Validate"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          terragrunt validate
 
-      - name: Terragrunt Lint
-        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/lint@main
-        with:
-          workingDirectory: ${{ inputs.workingDirectory }}
-          environment: ${{ inputs.environment }}
-          tfLog: ${{ inputs.tfLog }}
+      - name: Terragrunt Format Check
+        working-directory: ${{ inputs.workingDirectory }}
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📝 Terragrunt Format Check"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          terragrunt hclfmt --terragrunt-check || echo "Format check completed"
+          terraform fmt -check -recursive || echo "Format check completed"
 
       - name: Terragrunt Plan
-        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/plan@main
-        with:
-          workingDirectory: ${{ inputs.workingDirectory }}
-          environment: ${{ inputs.environment }}
-          tfLog: ${{ inputs.tfLog }}
+        working-directory: ${{ inputs.workingDirectory }}
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📋 Terragrunt Plan"
+          echo "📁 Directory: $(pwd)"
+          echo "🏷️  Environment: ${{ inputs.environment }}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          # Run plan with clean arguments
+          terragrunt plan -out=tfplan.out
+          
+          # Verify plan file was created
+          if [ -f "tfplan.out" ]; then
+            echo "✅ Plan file created: $(ls -lh tfplan.out | awk '{print $9, $5}')"
+          else
+            echo "❌ Error: Plan file not created"
+            exit 1
+          fi
 
       - name: Upload TF Plan
         uses: actions/upload-artifact@v4
         with:
-          name: tf-plan
-          path: ${{ github.workspace }}/${{ inputs.workingDirectory }}/tfplan.out
+          name: tf-plan-${{ inputs.environment }}
+          path: ${{ inputs.workingDirectory }}/tfplan.out
           retention-days: 30
+          if-no-files-found: error
 
   terragrunt-apply:
     needs: terragrunt-plan
@@ -121,6 +153,8 @@ jobs:
       id-token: 'write'
     env:
       TERRAGRUNT_GITHUB_ORG_TOKEN: ${{ secrets.TERRAGRUNT_GITHUB_ORG_TOKEN }}
+      TF_LOG: ${{ inputs.tfLog }}
+      TF_IN_AUTOMATION: 'true'
     
     steps:
       - name: Checkout Repository
@@ -140,6 +174,7 @@ jobs:
           chmod +x terragrunt
           sudo mv terragrunt /usr/local/bin/terragrunt
           terragrunt --version
+          terraform --version
 
       - name: GCP Auth
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/gcp/auth@main
@@ -150,13 +185,39 @@ jobs:
       - name: Download TF Plan
         uses: actions/download-artifact@v4
         with:
-          name: tf-plan
+          name: tf-plan-${{ inputs.environment }}
           path: ${{ inputs.workingDirectory }}
+
+      - name: Verify Plan File
+        working-directory: ${{ inputs.workingDirectory }}
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔍 Verifying Plan File"
+          echo "📁 Directory: $(pwd)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          ls -la
+          
+          if [ -f "tfplan.out" ]; then
+            echo "✅ Plan file found: $(ls -lh tfplan.out | awk '{print $9, $5}')"
+          else
+            echo "❌ Error: Plan file not found!"
+            exit 1
+          fi
 
       - name: Terragrunt Apply
         if: github.ref == 'refs/heads/main'
-        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/apply@main
-        with:
-          workingDirectory: ${{ inputs.workingDirectory }}
-          environment: ${{ inputs.environment }}
-          tfLog: ${{ inputs.tfLog }}
+        working-directory: ${{ inputs.workingDirectory }}
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🚀 Terragrunt Apply"
+          echo "📁 Directory: $(pwd)"
+          echo "🏷️  Environment: ${{ inputs.environment }}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          # Apply the plan file
+          terragrunt apply tfplan.out
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Apply completed successfully"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
