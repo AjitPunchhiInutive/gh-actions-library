@@ -125,14 +125,20 @@ jobs:
           echo "🏷️  Environment: ${{ inputs.environment }}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           
-          # Run plan with clean arguments
-          terragrunt plan -out=tfplan.out
+          # Use absolute path for plan file to avoid cache directory issues
+          PLAN_FILE="$(pwd)/tfplan.out"
+          echo "Plan file path: ${PLAN_FILE}"
+          
+          # Run plan with absolute path
+          terragrunt plan -out="${PLAN_FILE}"
           
           # Verify plan file was created
-          if [ -f "tfplan.out" ]; then
-            echo "✅ Plan file created: $(ls -lh tfplan.out | awk '{print $9, $5}')"
+          if [ -f "${PLAN_FILE}" ]; then
+            echo "✅ Plan file created: $(ls -lh ${PLAN_FILE} | awk '{print $9, $5}')"
           else
-            echo "❌ Error: Plan file not created"
+            echo "❌ Error: Plan file not created at ${PLAN_FILE}"
+            echo "Checking for plan files in cache directories..."
+            find . -name "tfplan.out" -type f
             exit 1
           fi
 
@@ -205,6 +211,14 @@ jobs:
             exit 1
           fi
 
+      - name: Terragrunt Init (for apply)
+        working-directory: ${{ inputs.workingDirectory }}
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔧 Terragrunt Init (for apply)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          terragrunt init -reconfigure
+
       - name: Terragrunt Apply
         if: github.ref == 'refs/heads/main'
         working-directory: ${{ inputs.workingDirectory }}
@@ -215,8 +229,11 @@ jobs:
           echo "🏷️  Environment: ${{ inputs.environment }}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           
+          # Use absolute path for apply
+          PLAN_FILE="$(pwd)/tfplan.out"
+          
           # Apply the plan file
-          terragrunt apply tfplan.out
+          terragrunt apply "${PLAN_FILE}"
           
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "✅ Apply completed successfully"
