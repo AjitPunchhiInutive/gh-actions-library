@@ -1,110 +1,116 @@
 name: Terragrunt Action Workflow GCP Prod
 
-
 on:
- workflow_call:
-   inputs:
-    workingDirectory:
-      description: "Path to the working directory"
-      required: true
-      type: string
-    environment:
-      description: "Name of the environment"
-      required: true
-      type: string
-    tfLog:
-      description: Terraform log level
-      required: false
-      type: string
-      default: 'ERROR'
-    terraformVersion:
-      description: "Terraform version to install"
-      required: false
-      type: string
-      default: '1.6.0'
-    terragruntVersion:
-      description: "Terragrunt version to install"
-      required: false
-      type: string
-      default: '0.54.0'
-
+  workflow_call:
+    inputs:
+      workingDirectory:
+        description: "Path to the working directory"
+        required: true
+        type: string
+      environment:
+        description: "Name of the environment"
+        required: true
+        type: string
+      tfLog:
+        description: Terraform log level
+        required: false
+        type: string
+        default: 'ERROR'
+      terraformVersion:
+        description: "Terraform version to install"
+        required: false
+        type: string
+        default: '1.6.0'
+      terragruntVersion:
+        description: "Terragrunt version to install"
+        required: false
+        type: string
+        default: '0.54.0'
+    secrets:
+      TERRAGRUNT_GITHUB_ORG_TOKEN:
+        required: true
+      GCP_PROD_PROJECT_ID:
+        required: true
+      GCP_PROD_WORKLOAD_IDENTITY_PROVIDER:
+        required: true
 
 jobs:
-  terragrunt-job:
+  terragrunt-plan:
     runs-on: ubuntu-latest
     permissions:
       contents: 'read'
       id-token: 'write'
     env:
       TERRAGRUNT_GITHUB_ORG_TOKEN: ${{ secrets.TERRAGRUNT_GITHUB_ORG_TOKEN }}
+    
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ inputs.terraformVersion }}
-        terraform_wrapper: false
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraformVersion }}
+          terraform_wrapper: false
 
-    - name: Setup Terragrunt
-      run: |
-        TERRAGRUNT_VERSION="${{ inputs.terragruntVersion }}"
-        echo "Installing Terragrunt version ${TERRAGRUNT_VERSION}..."
-        
-        # Download Terragrunt binary
-        wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64 -O terragrunt
-        
-        # Make executable
-        chmod +x terragrunt
-        
-        # Move to PATH
-        sudo mv terragrunt /usr/local/bin/terragrunt
-        
-        # Verify installation
-        terragrunt --version
-        terraform --version
-    - name: GCP Auth
-      uses: AjitPunchhiInutive/gh-actions-library/.github/actions/gcp/auth@main
-      with:
-        project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
-        workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
+      - name: Setup Terragrunt
+        run: |
+          TERRAGRUNT_VERSION="${{ inputs.terragruntVersion }}"
+          echo "Installing Terragrunt version ${TERRAGRUNT_VERSION}..."
+          
+          # Download Terragrunt binary
+          wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64 -O terragrunt
+          
+          # Make executable
+          chmod +x terragrunt
+          
+          # Move to PATH
+          sudo mv terragrunt /usr/local/bin/terragrunt
+          
+          # Verify installation
+          terragrunt --version
+          terraform --version
 
-    - name: Terragrunt Init
-      uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/init@main
-      with:
-        workingDirectory: ${{ inputs.workingDirectory }}
-        environment: ${{ inputs.environment }}
-        tfLog: ${{ inputs.tfLog }}
+      - name: GCP Auth
+        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/gcp/auth@main
+        with:
+          project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
 
+      - name: Terragrunt Init
+        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/init@main
+        with:
+          workingDirectory: ${{ inputs.workingDirectory }}
+          environment: ${{ inputs.environment }}
+          tfLog: ${{ inputs.tfLog }}
 
-    - name: Terragrunt Validate
-      uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/validate@main
-      with:
-        workingDirectory: ${{ inputs.workingDirectory }}
-        environment: ${{ inputs.environment }}
-        tfLog: ${{ inputs.tfLog }}
+      - name: Terragrunt Validate
+        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/validate@main
+        with:
+          workingDirectory: ${{ inputs.workingDirectory }}
+          environment: ${{ inputs.environment }}
+          tfLog: ${{ inputs.tfLog }}
 
-    - name: Terragrunt Lint
-      uses: sAjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/lint@main
-      with:
-        workingDirectory: ${{ inputs.workingDirectory }}
-        environment: ${{ inputs.environment }}
-        tfLog: ${{ inputs.tfLog }}
+      - name: Terragrunt Lint
+        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/lint@main
+        with:
+          workingDirectory: ${{ inputs.workingDirectory }}
+          environment: ${{ inputs.environment }}
+          tfLog: ${{ inputs.tfLog }}
 
-    - name: Terragrunt Plan
-      uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/plan@main
-      with:
-        workingDirectory: ${{ inputs.workingDirectory }}
-        environment: ${{ inputs.environment }}
-        tfLog: ${{ inputs.tfLog }}
+      - name: Terragrunt Plan
+        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/plan@main
+        with:
+          workingDirectory: ${{ inputs.workingDirectory }}
+          environment: ${{ inputs.environment }}
+          tfLog: ${{ inputs.tfLog }}
 
-    - name: Upload TF Plan
-      uses: actions/upload-artifact@v4
-      with:
-        name: tf-plan
-        path: ${{ github.workspace }}/${{ inputs.workingDirectory }}/tfplan.out
-        retention-days: 30
+      - name: Upload TF Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tf-plan
+          path: ${{ github.workspace }}/${{ inputs.workingDirectory }}/tfplan.out
+          retention-days: 30
 
   terragrunt-apply:
     needs: terragrunt-plan
@@ -115,26 +121,42 @@ jobs:
       id-token: 'write'
     env:
       TERRAGRUNT_GITHUB_ORG_TOKEN: ${{ secrets.TERRAGRUNT_GITHUB_ORG_TOKEN }}
+    
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: GCP Auth
-      uses: AjitPunchhiInutive/gh-actions-library/.github/actions/gcp/auth@main
-      with:
-        project_id:  ${{ secrets.GCP_PROD_PROJECT_ID }}
-        workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraformVersion }}
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        run: |
+          TERRAGRUNT_VERSION="${{ inputs.terragruntVersion }}"
+          echo "Installing Terragrunt version ${TERRAGRUNT_VERSION}..."
+          wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64 -O terragrunt
+          chmod +x terragrunt
+          sudo mv terragrunt /usr/local/bin/terragrunt
+          terragrunt --version
+
+      - name: GCP Auth
+        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/gcp/auth@main
+        with:
+          project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
       
-    - name: Download TF Plan
-      uses: actions/download-artifact@v4
-      with:
-        name: tf-plan
-        path:  ${{ inputs.workingDirectory }}
+      - name: Download TF Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tf-plan
+          path: ${{ inputs.workingDirectory }}
 
-    - name: Terragrunt Apply
-      if: github.ref == 'refs/heads/main'
-      uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/apply@main
-      with:
-        workingDirectory: ${{ inputs.workingDirectory }}
-        environment: ${{ inputs.environment }}
-        tfLog: ${{ inputs.tfLog }}
+      - name: Terragrunt Apply
+        if: github.ref == 'refs/heads/main'
+        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/terragrunt/apply@main
+        with:
+          workingDirectory: ${{ inputs.workingDirectory }}
+          environment: ${{ inputs.environment }}
+          tfLog: ${{ inputs.tfLog }}
