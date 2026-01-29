@@ -65,7 +65,7 @@ jobs:
         terragrunt --version
         terraform --version
     - name: GCP Auth
-      uses: southwire/gh-actions-library/.github/actions/gcp/auth@main
+      uses: AjitPunchhiInutive/gh-actions-library/tree/main/.github/actions/gcp/auth@main
       with:
         project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
         workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
