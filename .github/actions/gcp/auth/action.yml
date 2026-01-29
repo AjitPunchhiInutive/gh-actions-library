@@ -9,15 +9,17 @@ inputs:
   project_id:
     description: The GCP Project ID
     required: true
+    default: "melodic-furnace-403022"
 
   workload_identity_provider:
     description: GCP Workload Identity Provider resource path
     required: true
+    default: "projects/888274222600/locations/global/workloadIdentityPools/sw-github-action-pool/providers/gh-action-provider"
 
   gcp_service_account:
     description: (Optional) GCP Service Account email to impersonate
     required: false
-    default: ""
+    default: "sw-github-actions-wif-sa@melodic-furnace-403022.iam.gserviceaccount.com"
 
 runs:
   using: "composite"
