@@ -20,12 +20,12 @@ on:
         description: "Terraform version to install"
         required: false
         type: string
-        default: '1.6.2'
+        default: '1.10.3'
       terragruntVersion:
         description: "Terragrunt version to install"
         required: false
         type: string
-        default: '0.54.0'
+        default: '0.68.16'
     secrets:
       TERRAGRUNT_GITHUB_ORG_TOKEN:
         required: true
