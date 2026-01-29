@@ -105,15 +105,15 @@ jobs:
         working-directory: ${{ inputs.workingDirectory }}
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🔧 Terragrunt Init"
-          echo "📁 Directory: $(pwd)"
+          echo " Terragrunt Init"
+          echo " Directory: $(pwd)"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           terragrunt init -reconfigure
 
       - name: Install Checkov
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🔒 Installing Checkov"
+          echo " Installing Checkov"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           pip install checkov
           checkov --version
@@ -123,8 +123,8 @@ jobs:
         continue-on-error: true
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🔒 Running Checkov Security Scan"
-          echo "📁 Directory: $(pwd)"
+          echo " Running Checkov Security Scan"
+          echo " Directory: $(pwd)"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           
           # Prepare skip checks argument
@@ -146,7 +146,7 @@ jobs:
               --output-file-path . \
               --soft-fail ${SKIP_ARG} || true
           else
-            echo "⚠️  No Terraform cache directory found, scanning working directory"
+            echo "  No Terraform cache directory found, scanning working directory"
             checkov -d . \
               --framework terraform \
               --output cli \
@@ -156,7 +156,7 @@ jobs:
           fi
           
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "✅ Checkov scan completed"
+          echo " Checkov scan completed"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Upload Checkov Results
@@ -174,7 +174,7 @@ jobs:
         working-directory: ${{ inputs.workingDirectory }}
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "✅ Terragrunt Validate"
+          echo " Terragrunt Validate"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           terragrunt validate
 
@@ -182,7 +182,7 @@ jobs:
         working-directory: ${{ inputs.workingDirectory }}
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📝 Terragrunt Format Check"
+          echo " Terragrunt Format Check"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           terragrunt hclfmt --terragrunt-check || echo "Format check completed"
           terraform fmt -check -recursive || echo "Format check completed"
@@ -191,9 +191,9 @@ jobs:
         working-directory: ${{ inputs.workingDirectory }}
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📋 Terragrunt Plan"
-          echo "📁 Directory: $(pwd)"
-          echo "🏷️  Environment: ${{ inputs.environment }}"
+          echo " Terragrunt Plan"
+          echo " Directory: $(pwd)"
+          echo "  Environment: ${{ inputs.environment }}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           
           # Use absolute path for plan file to avoid cache directory issues
@@ -205,9 +205,9 @@ jobs:
           
           # Verify plan file was created
           if [ -f "${PLAN_FILE}" ]; then
-            echo "✅ Plan file created: $(ls -lh ${PLAN_FILE} | awk '{print $9, $5}')"
+            echo " Plan file created: $(ls -lh ${PLAN_FILE} | awk '{print $9, $5}')"
           else
-            echo "❌ Error: Plan file not created at ${PLAN_FILE}"
+            echo " Error: Plan file not created at ${PLAN_FILE}"
             echo "Checking for plan files in cache directories..."
             find . -name "tfplan.out" -type f
             exit 1
@@ -236,7 +236,7 @@ jobs:
           echo "Environment: ${{ inputs.environment }}"
           echo "Working Directory: ${{ inputs.workingDirectory }}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "✅ Approval granted - proceeding to apply"
+          echo " Approval granted - proceeding to apply"
 
   terragrunt-apply:
     needs: manual-approval
@@ -286,16 +286,16 @@ jobs:
         working-directory: ${{ inputs.workingDirectory }}
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🔍 Verifying Plan File"
-          echo "📁 Directory: $(pwd)"
+          echo " Verifying Plan File"
+          echo " Directory: $(pwd)"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           
           ls -la
           
           if [ -f "tfplan.out" ]; then
-            echo "✅ Plan file found: $(ls -lh tfplan.out | awk '{print $9, $5}')"
+            echo " Plan file found: $(ls -lh tfplan.out | awk '{print $9, $5}')"
           else
-            echo "❌ Error: Plan file not found!"
+            echo " Error: Plan file not found!"
             exit 1
           fi
 
@@ -312,9 +312,9 @@ jobs:
         working-directory: ${{ inputs.workingDirectory }}
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🚀 Terragrunt Apply"
-          echo "📁 Directory: $(pwd)"
-          echo "🏷️  Environment: ${{ inputs.environment }}"
+          echo " Terragrunt Apply"
+          echo " Directory: $(pwd)"
+          echo "  Environment: ${{ inputs.environment }}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           
           # Use absolute path for apply
@@ -324,5 +324,5 @@ jobs:
           terragrunt apply "${PLAN_FILE}"
           
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "✅ Apply completed successfully"
+          echo " Apply completed successfully"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
