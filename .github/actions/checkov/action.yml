@@ -1,0 +1,49 @@
+name: 'Install Checkov'
+description: 'Install Checkov security scanner for IaC'
+
+inputs:
+  version:
+    description: 'Checkov version to install (e.g., 3.2.0 or latest)'
+    required: false
+    default: 'latest'
+  
+  python-version:
+    description: 'Python version to use'
+    required: false
+    default: '3.11'
+
+outputs:
+  checkov-version:
+    description: 'Installed Checkov version'
+    value: ${{ steps.install.outputs.version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: 'pip'
+
+    - name: Install Checkov
+      id: install
+      shell: bash
+      run: |
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo " 🔒 Installing Checkov"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          pip install --upgrade pip
+          pip install checkov
+        else
+          pip install --upgrade pip
+          pip install checkov==${{ inputs.version }}
+        fi
+        
+        VERSION=$(checkov --version | head -n 1)
+        echo "✅ Checkov installed successfully"
+        echo "$VERSION"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
