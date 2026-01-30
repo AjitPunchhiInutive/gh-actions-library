@@ -124,7 +124,7 @@ jobs:
       - name: Install Checkov
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/checkov@main
         with:
-          checkov_Version: ${{ inputs.version }}
+          version: ${{ inputs.version }}
           python_version: ${{ inputs.python-version }}
 
       - name: Run Checkov Security Scan
