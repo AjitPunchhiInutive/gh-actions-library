@@ -26,12 +26,12 @@ on:
         required: false
         type: string
         default: '0.68.16'
-      checkov_Version:
+      version:
         description: "Checkov version to install (e.g., 3.2.0 or latest)"
         required: false
         type: string
         default: ''
-      python_version:
+      python-version:
         description: 'Python version to use'
         required: false
         type: string
@@ -124,8 +124,8 @@ jobs:
       - name: Install Checkov
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/checkov@main
         with:
-          checkov_Version: ${{ inputs.checkov_version }}
-          python_version: ${{ inputs.python_version }}
+          checkov_Version: ${{ inputs.version }}
+          python_version: ${{ inputs.python-version }}
 
       - name: Run Checkov Security Scan
         working-directory: ${{ inputs.workingDirectory }}
