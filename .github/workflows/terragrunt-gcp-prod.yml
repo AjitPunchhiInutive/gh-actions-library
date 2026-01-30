@@ -116,7 +116,7 @@ jobs:
           terragrunt init -reconfigure
 
       - name: Install Checkov
-        uses: AjitPunchhiInutive/gh-actions-library/.github/checkov@main
+        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/checkov@main
         with:
           checkovVersion: ${{ inputs.checkov_version }}
 
