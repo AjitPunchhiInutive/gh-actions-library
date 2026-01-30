@@ -65,10 +65,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      # - name: Setup Python
+      #   uses: actions/setup-python@v5
+      #   with:
+      #     python-version: '3.11'
+      #     cache: 'false'
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -125,14 +126,6 @@ jobs:
         with:
           checkov_Version: ${{ inputs.checkov_version }}
           python_version: ${{ inputs.python_version }}
-
-      # - name: Install Checkov
-      #   run: |
-      #     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      #     echo " Installing Checkov"
-      #     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      #     pip install checkov
-      #     checkov --version
 
       - name: Run Checkov Security Scan
         working-directory: ${{ inputs.workingDirectory }}
