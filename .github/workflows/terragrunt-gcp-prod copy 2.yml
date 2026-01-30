@@ -65,6 +65,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # - name: Setup Python
+      #   uses: actions/setup-python@v5
+      #   with:
+      #     python-version: '3.11'
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -115,18 +120,63 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           terragrunt init -reconfigure
 
-      - name: Run Checkov Security Scan
+      - name: Install Checkov
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/checkov@main
         with:
           version: ${{ inputs.version }}
           python-version: ${{ inputs.python-version }}
-          run-scan: 'true'
-          workingDirectory: ${{ inputs.workingDirectory }}
-          checkovSkipChecks: ${{ inputs.checkovSkipChecks }}
-          scan-terragrunt-cache: 'true'
-          output-format: 'cli,junitxml,json'
-          framework: 'terraform'
-          soft-fail: 'true'
+
+      - name: Run Checkov Security Scan
+        working-directory: ${{ inputs.workingDirectory }}
+        continue-on-error: true
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " Running Checkov Security Scan"
+          echo " Directory: $(pwd)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          # Prepare skip checks argument
+          SKIP_CHECKS="${{ inputs.checkovSkipChecks }}"
+          SKIP_ARG=""
+          if [ -n "${SKIP_CHECKS}" ]; then
+            SKIP_ARG="--skip-check ${SKIP_CHECKS}"
+          fi
+          
+          # Find Terraform files in cache
+          CACHE_DIR=$(find .terragrunt-cache -type d -name "*.tf" -exec dirname {} \; | head -n 1)
+          
+          if [ -n "${CACHE_DIR}" ]; then
+            echo "Scanning Terraform files in: ${CACHE_DIR}"
+            checkov -d "${CACHE_DIR}" \
+              --framework terraform \
+              --output cli \
+              --output junitxml \
+              --output-file-path . \
+              --soft-fail ${SKIP_ARG} || true
+          else
+            echo "  No Terraform cache directory found, scanning working directory"
+            checkov -d . \
+              --framework terraform \
+              --output cli \
+              --output junitxml \
+              --output-file-path . \
+              --soft-fail ${SKIP_ARG} || true
+          fi
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " Checkov scan completed"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Upload Checkov Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkov-results-${{ inputs.environment }}
+          path: |
+            ${{ inputs.workingDirectory }}/results_*.xml
+            ${{ inputs.workingDirectory }}/results_*.json
+          retention-days: 30
+          if-no-files-found: ignore
 
       - name: Terragrunt Validate
         working-directory: ${{ inputs.workingDirectory }}
