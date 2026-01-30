@@ -30,7 +30,7 @@ on:
         description: "Checkov version to install (e.g., 3.2.0 or latest)"
         required: false
         type: string
-        default: ''
+        default: 'latest'
       python-version:
         description: 'Python version to use'
         required: false
