@@ -31,12 +31,41 @@ on:
         required: false
         type: string
         default: '0.68.16'
-      
       checkovSkipChecks:
         description: "Comma-separated list of Checkov checks to skip"
         required: false
         type: string
         default: ''
+      checkovVersion:
+        description: "Checkov version to install"
+        required: false
+        type: string
+        default: '3.2.499'
+      validateTerraform:
+        description: "Run Terraform validation checks before Checkov scan"
+        required: false
+        type: boolean
+        default: true
+      checkFormatting:
+        description: "Check Terraform file formatting"
+        required: false
+        type: boolean
+        default: true
+      failOnValidationError:
+        description: "Fail the workflow if Terraform validation errors are found"
+        required: false
+        type: boolean
+        default: false
+      checkovSoftFail:
+        description: "Do not fail the build if security issues are found"
+        required: false
+        type: boolean
+        default: true
+      checkovOutputFormat:
+        description: "Checkov output format (cli, json, junitxml, sarif)"
+        required: false
+        type: string
+        default: 'cli,junitxml,json'
     secrets:
       TERRAGRUNT_GITHUB_ORG_TOKEN:
         required: true
@@ -69,8 +98,12 @@ jobs:
 
       - name: Setup Terragrunt
         run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📦 Installing Terragrunt"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
           TERRAGRUNT_VERSION="${{ inputs.terragruntVersion }}"
-          echo "Installing Terragrunt version ${TERRAGRUNT_VERSION}..."
+          echo "Version: ${TERRAGRUNT_VERSION}"
           
           # Download Terragrunt binary
           wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64 -O terragrunt
@@ -82,8 +115,13 @@ jobs:
           sudo mv terragrunt /usr/local/bin/terragrunt
           
           # Verify installation
+          echo ""
+          echo "✅ Terragrunt Installation:"
           terragrunt --version
+          echo ""
+          echo "✅ Terraform Installation:"
           terraform --version
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: GCP Auth
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/gcp/auth@main
@@ -93,97 +131,167 @@ jobs:
 
       - name: Debug - Check Directory Structure
         run: |
-          echo "=== Current Directory ==="
-          pwd
-          echo "=== Working Directory Input ==="
-          echo "${{ inputs.workingDirectory }}"
-          echo "=== Check if directory exists ==="
-          ls -la ${{ inputs.workingDirectory }} || echo "Directory not found"
-          echo "=== Find terragrunt.hcl files ==="
-          find . -name "terragrunt.hcl" -type f
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔍 Directory Structure Analysis"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Current Directory: $(pwd)"
+          echo ""
+          echo "Working Directory Input: ${{ inputs.workingDirectory }}"
+          echo ""
+          echo "Directory Contents:"
+          ls -la ${{ inputs.workingDirectory }} 2>/dev/null || echo "❌ Directory not found"
+          echo ""
+          echo "Terragrunt Files:"
+          find . -name "terragrunt.hcl" -type f 2>/dev/null || echo "No terragrunt.hcl files found"
+          echo ""
+          echo "Terraform Files:"
+          find . -name "*.tf" -type f ! -path "*/.terragrunt-cache/*" | head -10 || echo "No .tf files found"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Terragrunt Init
         working-directory: ${{ inputs.workingDirectory }}
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo " Terragrunt Init"
-          echo " Directory: $(pwd)"
+          echo "🔧 Terragrunt Init"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Directory: $(pwd)"
+          echo ""
           terragrunt init -reconfigure
-
-      
+          echo ""
+          echo "✅ Initialization completed"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Terragrunt Validate
         working-directory: ${{ inputs.workingDirectory }}
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo " Terragrunt Validate"
+          echo "✅ Terragrunt Validate"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           terragrunt validate
+          echo ""
+          echo "✅ Validation passed"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Terragrunt Format Check
         working-directory: ${{ inputs.workingDirectory }}
+        continue-on-error: true
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo " Terragrunt Format Check"
+          echo "📝 Terragrunt Format Check"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          terragrunt hclfmt --terragrunt-check || echo "Format check completed"
-          terraform fmt -check -recursive || echo "Format check completed"
+          
+          echo "Checking Terragrunt HCL files..."
+          terragrunt hclfmt --terragrunt-check || echo "⚠️ HCL format issues found"
+          
+          echo ""
+          echo "Checking Terraform files..."
+          terraform fmt -check -recursive || echo "⚠️ TF format issues found"
+          
+          echo ""
+          echo "ℹ️ Format check completed (non-blocking)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Terragrunt Plan
         working-directory: ${{ inputs.workingDirectory }}
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo " Terragrunt Plan"
-          echo " Directory: $(pwd)"
-          echo "  Environment: ${{ inputs.environment }}"
+          echo "📋 Terragrunt Plan"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Directory: $(pwd)"
+          echo "Environment: ${{ inputs.environment }}"
+          echo ""
           
           # Use absolute path for plan file to avoid cache directory issues
           PLAN_FILE="$(pwd)/tfplan.out"
           echo "Plan file path: ${PLAN_FILE}"
+          echo ""
           
           # Run plan with absolute path
           terragrunt plan -out="${PLAN_FILE}"
           
+          echo ""
           # Verify plan file was created
           if [ -f "${PLAN_FILE}" ]; then
-            echo " Plan file created: $(ls -lh ${PLAN_FILE} | awk '{print $9, $5}')"
+            echo "✅ Plan file created: $(ls -lh ${PLAN_FILE} | awk '{print $9, $5}')"
           else
-            echo " Error: Plan file not created at ${PLAN_FILE}"
+            echo "❌ Error: Plan file not created at ${PLAN_FILE}"
+            echo ""
             echo "Checking for plan files in cache directories..."
             find . -name "tfplan.out" -type f
             exit 1
           fi
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
       - name: Convert Plan to JSON for Checkov
         working-directory: ${{ inputs.workingDirectory }}
         run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔄 Converting Plan to JSON"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           
           PLAN_FILE="$(pwd)/tfplan.out"
           JSON_PLAN_FILE="$(pwd)/tfplan.json"
+          
+          echo "Source: ${PLAN_FILE}"
+          echo "Target: ${JSON_PLAN_FILE}"
+          echo ""
+          
           terragrunt show -json "${PLAN_FILE}" > "${JSON_PLAN_FILE}"
+          
           if [ -f "${JSON_PLAN_FILE}" ]; then
             echo "✅ JSON plan file created: $(ls -lh ${JSON_PLAN_FILE} | awk '{print $9, $5}')"
           else
             echo "❌ Error: JSON plan file not created"
             exit 1
           fi
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-      - name: Run Checkov Security Scan
+      - name: Run Checkov Security Scan with Terraform Validation
         if: inputs.runscan == true
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/checkov@main
         with:
+          # Checkov configuration
+          version: ${{ inputs.checkovVersion }}
           run-scan: ${{ inputs.runscan }}
           workingDirectory: ${{ inputs.workingDirectory }}
           checkovSkipChecks: ${{ inputs.checkovSkipChecks }}
+          scan-terragrunt-cache: 'true'
+          output-format: ${{ inputs.checkovOutputFormat }}
+          framework: 'terraform'
+          soft-fail: ${{ inputs.checkovSoftFail }}
+          
+          # Terraform validation configuration
+          validate-terraform: ${{ inputs.validateTerraform }}
+          terraform-version: ${{ inputs.terraformVersion }}
+          check-formatting: ${{ inputs.checkFormatting }}
+          fail-on-validation-error: ${{ inputs.failOnValidationError }}
 
-      - name: Upload TF Plan
+      - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
         with:
           name: tf-plan-${{ inputs.environment }}
-          path: ${{ inputs.workingDirectory }}/tfplan.out
+          path: |
+            ${{ inputs.workingDirectory }}/tfplan.out
+            ${{ inputs.workingDirectory }}/tfplan.json
           retention-days: 30
           if-no-files-found: error
+
+      - name: Plan Summary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> $GITHUB_STEP_SUMMARY
+          echo "## 📋 Terragrunt Plan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | \`${{ inputs.environment }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Working Directory** | \`${{ inputs.workingDirectory }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Terraform Version** | \`${{ inputs.terraformVersion }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Terragrunt Version** | \`${{ inputs.terragruntVersion }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Security Scan** | \`${{ inputs.runscan }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Plan phase completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
   manual-approval:
     needs: terragrunt-plan
@@ -197,10 +305,13 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "⏸️  Waiting for Manual Approval"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
           echo "Environment: ${{ inputs.environment }}"
           echo "Working Directory: ${{ inputs.workingDirectory }}"
+          echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo " Approval granted - proceeding to apply"
+          echo "✅ Approval granted - proceeding to apply"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
   terragrunt-apply:
     needs: manual-approval
@@ -226,13 +337,24 @@ jobs:
 
       - name: Setup Terragrunt
         run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📦 Installing Terragrunt"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
           TERRAGRUNT_VERSION="${{ inputs.terragruntVersion }}"
-          echo "Installing Terragrunt version ${TERRAGRUNT_VERSION}..."
+          echo "Version: ${TERRAGRUNT_VERSION}"
+          echo ""
+          
           wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64 -O terragrunt
           chmod +x terragrunt
           sudo mv terragrunt /usr/local/bin/terragrunt
+          
+          echo "✅ Terragrunt Installation:"
           terragrunt --version
+          echo ""
+          echo "✅ Terraform Installation:"
           terraform --version
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: GCP Auth
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/gcp/auth@main
@@ -240,7 +362,7 @@ jobs:
           project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
           workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
       
-      - name: Download TF Plan
+      - name: Download Terraform Plan
         uses: actions/download-artifact@v4
         with:
           name: tf-plan-${{ inputs.environment }}
@@ -250,18 +372,25 @@ jobs:
         working-directory: ${{ inputs.workingDirectory }}
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo " Verifying Plan File"
-          echo " Directory: $(pwd)"
+          echo "🔍 Verifying Plan File"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          
+          echo "Directory: $(pwd)"
+          echo ""
+          echo "Directory contents:"
           ls -la
+          echo ""
           
           if [ -f "tfplan.out" ]; then
-            echo " Plan file found: $(ls -lh tfplan.out | awk '{print $9, $5}')"
+            echo "✅ Plan file found: $(ls -lh tfplan.out | awk '{print $9, $5}')"
           else
-            echo " Error: Plan file not found!"
+            echo "❌ Error: Plan file not found!"
             exit 1
           fi
+          
+          if [ -f "tfplan.json" ]; then
+            echo "✅ JSON plan file found: $(ls -lh tfplan.json | awk '{print $9, $5}')"
+          fi
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Terragrunt Init (for apply)
         working-directory: ${{ inputs.workingDirectory }}
@@ -270,23 +399,62 @@ jobs:
           echo "🔧 Terragrunt Init (for apply)"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           terragrunt init -reconfigure
+          echo ""
+          echo "✅ Initialization completed"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Terragrunt Apply
         if: github.ref == 'refs/heads/main'
         working-directory: ${{ inputs.workingDirectory }}
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo " Terragrunt Apply"
-          echo " Directory: $(pwd)"
-          echo "  Environment: ${{ inputs.environment }}"
+          echo "🚀 Terragrunt Apply"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Directory: $(pwd)"
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Branch: ${{ github.ref }}"
+          echo ""
           
           # Use absolute path for apply
           PLAN_FILE="$(pwd)/tfplan.out"
+          echo "Applying plan: ${PLAN_FILE}"
+          echo ""
           
           # Apply the plan file
           terragrunt apply "${PLAN_FILE}"
           
+          echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo " Apply completed successfully"
+          echo "✅ Apply completed successfully"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Apply Summary
+        if: success()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Terragrunt Apply Summary" >> $GITHUB_STEP_SUMMARY
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | \`${{ inputs.environment }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Working Directory** | \`${{ inputs.workingDirectory }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Applied By** | \`${{ github.actor }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit SHA** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Workflow Run** | [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 Infrastructure changes have been successfully applied to production!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> $GITHUB_STEP_SUMMARY
+          echo "## ❌ Terragrunt Apply Failed" >> $GITHUB_STEP_SUMMARY
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ The apply step failed. Please review the logs and take appropriate action." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** \`${{ inputs.environment }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Working Directory:** \`${{ inputs.workingDirectory }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY

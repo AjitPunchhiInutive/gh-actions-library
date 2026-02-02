@@ -49,6 +49,27 @@ inputs:
     required: false
     default: 'true'
 
+  # Terraform validation inputs
+  validate-terraform:
+    description: 'Run Terraform validation checks before Checkov scan'
+    required: false
+    default: 'true'
+
+  terraform-version:
+    description: 'Terraform version to install for validation'
+    required: false
+    default: 'latest'
+
+  check-formatting:
+    description: 'Check Terraform file formatting'
+    required: false
+    default: 'true'
+
+  fail-on-validation-error:
+    description: 'Fail the workflow if Terraform validation errors are found'
+    required: false
+    default: 'false'
+
 outputs:
   checkov-version:
     description: 'Installed Checkov version'
@@ -62,6 +83,14 @@ outputs:
     description: 'Directory that was scanned'
     value: ${{ steps.scan.outputs.scanned-dir }}
 
+  terraform-validation:
+    description: 'Terraform validation status'
+    value: ${{ steps.tf-validate.outputs.status }}
+
+  terraform-formatting:
+    description: 'Terraform formatting check status'
+    value: ${{ steps.tf-format.outputs.status }}
+
 runs:
   using: 'composite'
   steps:
@@ -70,12 +99,174 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
 
+    - name: Setup Terraform
+      if: inputs.validate-terraform == 'true' && inputs.framework == 'terraform'
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraform-version }}
+
+    - name: Terraform Format Check
+      id: tf-format
+      if: inputs.validate-terraform == 'true' && inputs.check-formatting == 'true' && inputs.framework == 'terraform'
+      shell: bash
+      working-directory: ${{ inputs.workingDirectory }}
+      continue-on-error: ${{ inputs.fail-on-validation-error == 'false' }}
+      run: |
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📝 Checking Terraform Formatting"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        
+        # Find all .tf files
+        TF_FILES=$(find . -type f -name "*.tf" ! -path "*/.terragrunt-cache/*" ! -path "*/.terraform/*")
+        
+        if [ -z "$TF_FILES" ]; then
+          echo "⚠️  No Terraform files found"
+          echo "status=skipped" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        echo "Found Terraform files:"
+        echo "$TF_FILES" | sed 's/^/  /'
+        echo ""
+        
+        # Run terraform fmt check
+        FORMAT_ERRORS=0
+        terraform fmt -check -recursive -diff . || FORMAT_ERRORS=$?
+        
+        if [ $FORMAT_ERRORS -eq 0 ]; then
+          echo ""
+          echo "✅ All Terraform files are properly formatted"
+          echo "status=passed" >> $GITHUB_OUTPUT
+        else
+          echo ""
+          echo "❌ Formatting issues found. Run 'terraform fmt -recursive' to fix."
+          echo "status=failed" >> $GITHUB_OUTPUT
+          
+          # Add to GitHub summary
+          echo "## ⚠️ Terraform Formatting Issues" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Some Terraform files are not properly formatted." >> $GITHUB_STEP_SUMMARY
+          echo "Run the following command to fix:" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "terraform fmt -recursive" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ inputs.fail-on-validation-error }}" = "true" ]; then
+            exit 1
+          fi
+        fi
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    - name: Terraform Syntax Validation
+      id: tf-validate
+      if: inputs.validate-terraform == 'true' && inputs.framework == 'terraform'
+      shell: bash
+      working-directory: ${{ inputs.workingDirectory }}
+      continue-on-error: ${{ inputs.fail-on-validation-error == 'false' }}
+      run: |
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "🔍 Validating Terraform Syntax"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        
+        VALIDATION_ERRORS=0
+        TOTAL_DIRS=0
+        VALIDATED_DIRS=0
+        FAILED_DIRS=""
+        
+        # Find directories containing .tf files (excluding cache directories)
+        TF_DIRS=$(find . -type f -name "*.tf" ! -path "*/.terragrunt-cache/*" ! -path "*/.terraform/*" -exec dirname {} \; | sort -u)
+        
+        if [ -z "$TF_DIRS" ]; then
+          echo "⚠️  No Terraform files found"
+          echo "status=skipped" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        echo "Found Terraform directories:"
+        echo "$TF_DIRS" | sed 's/^/  /'
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        
+        # Validate each directory
+        while IFS= read -r dir; do
+          TOTAL_DIRS=$((TOTAL_DIRS + 1))
+          echo "📂 Validating: $dir"
+          
+          cd "$dir" || continue
+          
+          # Initialize if needed (without backend)
+          if [ ! -d ".terraform" ]; then
+            echo "   Initializing (backend=false)..."
+            terraform init -backend=false > /dev/null 2>&1 || {
+              echo "   ⚠️  Initialization failed, skipping validation"
+              cd - > /dev/null
+              continue
+            }
+          fi
+          
+          # Run validation
+          if terraform validate -no-color > validate_output.txt 2>&1; then
+            echo "   ✅ Valid"
+            VALIDATED_DIRS=$((VALIDATED_DIRS + 1))
+          else
+            echo "   ❌ Validation failed"
+            cat validate_output.txt | sed 's/^/      /'
+            VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+            FAILED_DIRS="${FAILED_DIRS}\n  - ${dir}"
+          fi
+          
+          rm -f validate_output.txt
+          cd - > /dev/null
+          echo ""
+        done <<< "$TF_DIRS"
+        
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📊 Validation Summary"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Total directories: $TOTAL_DIRS"
+        echo "Successfully validated: $VALIDATED_DIRS"
+        echo "Failed validations: $VALIDATION_ERRORS"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        
+        # Add to GitHub summary
+        echo "## 🔍 Terraform Validation Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Total Directories | $TOTAL_DIRS |" >> $GITHUB_STEP_SUMMARY
+        echo "| ✅ Validated | $VALIDATED_DIRS |" >> $GITHUB_STEP_SUMMARY
+        echo "| ❌ Failed | $VALIDATION_ERRORS |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ $VALIDATION_ERRORS -eq 0 ]; then
+          echo "✅ All Terraform configurations are valid"
+          echo "status=passed" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Validation errors found in the following directories:"
+          echo -e "$FAILED_DIRS"
+          echo "status=failed" >> $GITHUB_OUTPUT
+          
+          echo "### ❌ Failed Directories" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo -e "$FAILED_DIRS" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ inputs.fail-on-validation-error }}" = "true" ]; then
+            exit 1
+          fi
+        fi
+
     - name: Install Checkov
       id: install
       shell: bash
       run: |
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo " 🔒 Installing Checkov"
+        echo "🔒 Installing Checkov"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         
         if [ "${{ inputs.version }}" = "latest" ]; then
@@ -87,7 +278,7 @@ runs:
         fi
         
         VERSION=$(checkov --version | head -n 1)
-        echo " Checkov installed successfully"
+        echo "✅ Checkov installed successfully"
         echo "$VERSION"
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -100,17 +291,18 @@ runs:
       continue-on-error: true
       run: |
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "  Running Checkov Security Scan"
-        echo " Working Directory: $(pwd)"
-        echo " Framework: ${{ inputs.framework }}"
-        echo " Output Format: ${{ inputs.output-format }}"
+        echo "🔒 Running Checkov Security Scan"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📂 Working Directory: $(pwd)"
+        echo "🎯 Framework: ${{ inputs.framework }}"
+        echo "📊 Output Format: ${{ inputs.output-format }}"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         
         # Prepare skip checks argument
         SKIP_CHECKS="${{ inputs.checkovSkipChecks }}"
         SKIP_ARG=""
         if [ -n "${SKIP_CHECKS}" ]; then
-          echo "  Skipping checks: ${SKIP_CHECKS}"
+          echo "⏭️  Skipping checks: ${SKIP_CHECKS}"
           SKIP_ARG="--skip-check ${SKIP_CHECKS}"
         fi
         
@@ -145,17 +337,17 @@ runs:
             if [ -n "${TF_MODULE}" ]; then
               SCAN_DIR="${TF_MODULE}"
               SCAN_TYPE="Terragrunt cache"
-              echo " Found Terragrunt cache: ${SCAN_DIR}"
+              echo "✅ Found Terragrunt cache: ${SCAN_DIR}"
             else
-              echo "  Terragrunt cache found but no .tf files, scanning working directory"
+              echo "⚠️  Terragrunt cache found but no .tf files, scanning working directory"
             fi
           else
-            echo "  No Terragrunt cache found, scanning working directory"
+            echo "ℹ️  No Terragrunt cache found, scanning working directory"
           fi
         fi
         
         echo ""
-        echo " Scanning ${SCAN_TYPE}: ${SCAN_DIR}"
+        echo "📁 Scanning ${SCAN_TYPE}: ${SCAN_DIR}"
         echo ""
         
         # Build and run Checkov command
@@ -180,8 +372,8 @@ runs:
         
         echo ""
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "  Checkov scan completed"
-        echo "  Results saved to current directory"
+        echo "✅ Checkov scan completed"
+        echo "📄 Results saved to current directory"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     - name: Upload Checkov Results
@@ -202,15 +394,22 @@ runs:
       shell: bash
       working-directory: ${{ inputs.workingDirectory }}
       run: |
-        echo "##  Checkov Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+        echo "## 🔒 Checkov Security Scan Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Checkov Version:** ${{ steps.install.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Scanned Directory:** \`${{ steps.scan.outputs.scanned-dir }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "**Framework:** \`${{ inputs.framework }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "**Output Formats:** \`${{ inputs.output-format }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| **Checkov Version** | \`${{ steps.install.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Scanned Directory** | \`${{ steps.scan.outputs.scanned-dir }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Framework** | \`${{ inputs.framework }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Output Formats** | \`${{ inputs.output-format }}\` |" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ inputs.validate-terraform }}" = "true" ]; then
+          echo "| **Terraform Validation** | \`${{ steps.tf-validate.outputs.status }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Terraform Formatting** | \`${{ steps.tf-format.outputs.status }}\` |" >> $GITHUB_STEP_SUMMARY
+        fi
         
         if [ -n "${{ inputs.checkovSkipChecks }}" ]; then
-          echo "**Skipped Checks:** \`${{ inputs.checkovSkipChecks }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "| **Skipped Checks** | \`${{ inputs.checkovSkipChecks }}\` |" >> $GITHUB_STEP_SUMMARY
         fi
         
         echo "" >> $GITHUB_STEP_SUMMARY
