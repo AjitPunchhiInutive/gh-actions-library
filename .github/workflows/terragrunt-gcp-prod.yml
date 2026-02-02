@@ -26,16 +26,11 @@ on:
         required: false
         type: string
         default: '0.68.16'
-      # version:
-      #   description: "Checkov version to install"
-      #   required: false
-      #   type: string
-      #   default: '3.2.499'
-      # python-version:
-      #   description: 'Python version to use'
-      #   required: false
-      #   type: string
-      #   default: '3.12'
+      run-scan:
+        description: 'Enable or disable scan execution'
+        required: true
+        type: boolean
+        default: true
       checkovSkipChecks:
         description: "Comma-separated list of Checkov checks to skip"
         required: false
@@ -120,13 +115,13 @@ jobs:
         with:
           # version: ${{ inputs.version }}
           # python-version: ${{ inputs.python-version }}
-          run-scan: 'true'
+          run-scan: ${{ inputs.run-scan }}
           workingDirectory: ${{ inputs.workingDirectory }}
           checkovSkipChecks: ${{ inputs.checkovSkipChecks }}
-          scan-terragrunt-cache: 'true'
-          output-format: 'cli,junitxml,json'
-          framework: 'terraform'
-          soft-fail: 'true'
+          # scan-terragrunt-cache: 'true'
+          # output-format: 'cli,junitxml,json'
+          # framework: 'terraform'
+          # soft-fail: 'true'
 
       - name: Terragrunt Validate
         working-directory: ${{ inputs.workingDirectory }}
