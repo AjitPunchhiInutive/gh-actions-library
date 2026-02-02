@@ -155,18 +155,28 @@ jobs:
             find . -name "tfplan.out" -type f
             exit 1
           fi
+      - name: Convert Plan to JSON for Checkov
+        working-directory: ${{ inputs.workingDirectory }}
+        run: |
+          
+          PLAN_FILE="$(pwd)/tfplan.out"
+          JSON_PLAN_FILE="$(pwd)/tfplan.json"
+          terragrunt show -json "${PLAN_FILE}" > "${JSON_PLAN_FILE}"
+          if [ -f "${JSON_PLAN_FILE}" ]; then
+            echo "✅ JSON plan file created: $(ls -lh ${JSON_PLAN_FILE} | awk '{print $9, $5}')"
+          else
+            echo "❌ Error: JSON plan file not created"
+            exit 1
+          fi
+
       - name: Run Checkov Security Scan
+        if: inputs.runscan == true
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/checkov@main
         with:
-          # version: ${{ inputs.version }}
-          # python-version: ${{ inputs.python-version }}
           run-scan: ${{ inputs.runscan }}
           workingDirectory: ${{ inputs.workingDirectory }}
           checkovSkipChecks: ${{ inputs.checkovSkipChecks }}
-          # scan-terragrunt-cache: 'true'
-          # output-format: 'cli,junitxml,json'
-          # framework: 'terraform'
-          # soft-fail: 'true'
+
       - name: Upload TF Plan
         uses: actions/upload-artifact@v4
         with:
