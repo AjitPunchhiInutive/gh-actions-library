@@ -26,16 +26,16 @@ on:
         required: false
         type: string
         default: '0.68.16'
-      version:
-        description: "Checkov version to install"
-        required: false
-        type: string
-        default: '3.2.499'
-      python-version:
-        description: 'Python version to use'
-        required: false
-        type: string
-        default: '3.12'
+      # version:
+      #   description: "Checkov version to install"
+      #   required: false
+      #   type: string
+      #   default: '3.2.499'
+      # python-version:
+      #   description: 'Python version to use'
+      #   required: false
+      #   type: string
+      #   default: '3.12'
       checkovSkipChecks:
         description: "Comma-separated list of Checkov checks to skip"
         required: false
@@ -118,8 +118,8 @@ jobs:
       - name: Run Checkov Security Scan
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/checkov@main
         with:
-          version: ${{ inputs.version }}
-          python-version: ${{ inputs.python-version }}
+          # version: ${{ inputs.version }}
+          # python-version: ${{ inputs.python-version }}
           run-scan: 'true'
           workingDirectory: ${{ inputs.workingDirectory }}
           checkovSkipChecks: ${{ inputs.checkovSkipChecks }}
