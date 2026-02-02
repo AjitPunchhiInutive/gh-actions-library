@@ -111,18 +111,7 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           terragrunt init -reconfigure
 
-      - name: Run Checkov Security Scan
-        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/checkov@main
-        with:
-          # version: ${{ inputs.version }}
-          # python-version: ${{ inputs.python-version }}
-          run-scan: ${{ inputs.runscan }}
-          workingDirectory: ${{ inputs.workingDirectory }}
-          checkovSkipChecks: ${{ inputs.checkovSkipChecks }}
-          # scan-terragrunt-cache: 'true'
-          # output-format: 'cli,junitxml,json'
-          # framework: 'terraform'
-          # soft-fail: 'true'
+      
 
       - name: Terragrunt Validate
         working-directory: ${{ inputs.workingDirectory }}
@@ -166,7 +155,18 @@ jobs:
             find . -name "tfplan.out" -type f
             exit 1
           fi
-
+      - name: Run Checkov Security Scan
+        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/checkov@main
+        with:
+          # version: ${{ inputs.version }}
+          # python-version: ${{ inputs.python-version }}
+          run-scan: ${{ inputs.runscan }}
+          workingDirectory: ${{ inputs.workingDirectory }}
+          checkovSkipChecks: ${{ inputs.checkovSkipChecks }}
+          # scan-terragrunt-cache: 'true'
+          # output-format: 'cli,junitxml,json'
+          # framework: 'terraform'
+          # soft-fail: 'true'
       - name: Upload TF Plan
         uses: actions/upload-artifact@v4
         with:
