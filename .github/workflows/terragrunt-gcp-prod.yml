@@ -3,6 +3,11 @@ name: Terragrunt Action Workflow GCP Prod
 on:
   workflow_call:
     inputs:
+      runscan:
+        description: 'Enable or disable scan execution'
+        required: true
+        type: boolean
+        default: true
       workingDirectory:
         description: "Path to the working directory"
         required: true
@@ -26,11 +31,7 @@ on:
         required: false
         type: string
         default: '0.68.16'
-      run-scan:
-        description: 'Enable or disable scan execution'
-        required: true
-        type: boolean
-        default: true
+      
       checkovSkipChecks:
         description: "Comma-separated list of Checkov checks to skip"
         required: false
@@ -115,7 +116,7 @@ jobs:
         with:
           # version: ${{ inputs.version }}
           # python-version: ${{ inputs.python-version }}
-          run-scan: ${{ inputs.run-scan }}
+          run-scan: ${{ inputs.runscan }}
           workingDirectory: ${{ inputs.workingDirectory }}
           checkovSkipChecks: ${{ inputs.checkovSkipChecks }}
           # scan-terragrunt-cache: 'true'
