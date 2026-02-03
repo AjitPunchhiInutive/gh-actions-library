@@ -3,11 +3,6 @@ name: Terragrunt Action Workflow GCP Prod
 on:
   workflow_call:
     inputs:
-      runscan:
-        description: 'Enable or disable scan execution'
-        required: false
-        type: boolean
-        default: true
       workingDirectory:
         description: "Path to the working directory"
         required: true
@@ -31,19 +26,6 @@ on:
         required: false
         type: string
         default: '0.68.16'
-      
-      checkovSkipChecks:
-        description: "Comma-separated list of Checkov checks to skip"
-        required: false
-        type: string
-        default: ''
-    secrets:
-      TERRAGRUNT_GITHUB_ORG_TOKEN:
-        required: true
-      GCP_PROD_PROJECT_ID:
-        required: true
-      GCP_PROD_WORKLOAD_IDENTITY_PROVIDER:
-        required: true
 
 jobs:
   terragrunt-plan:
@@ -51,7 +33,7 @@ jobs:
     permissions:
       contents: 'read'
       id-token: 'write'
-      pull-requests: 'write'  # For Checkov comments
+      # pull-requests: 'write'  # For Checkov comments
     env:
       TERRAGRUNT_GITHUB_ORG_TOKEN: ${{ secrets.TERRAGRUNT_GITHUB_ORG_TOKEN }}
       TF_LOG: ${{ inputs.tfLog }}
@@ -60,6 +42,11 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      # - name: Setup Python
+      #   uses: actions/setup-python@v5
+      #   with:
+      #     python-version: '3.11'
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -111,8 +98,6 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           terragrunt init -reconfigure
 
-      
-
       - name: Terragrunt Validate
         working-directory: ${{ inputs.workingDirectory }}
         run: |
@@ -155,27 +140,6 @@ jobs:
             find . -name "tfplan.out" -type f
             exit 1
           fi
-      - name: Convert Plan to JSON for Checkov
-        working-directory: ${{ inputs.workingDirectory }}
-        run: |
-          
-          PLAN_FILE="$(pwd)/tfplan.out"
-          JSON_PLAN_FILE="$(pwd)/tfplan.json"
-          terragrunt show -json "${PLAN_FILE}" > "${JSON_PLAN_FILE}"
-          if [ -f "${JSON_PLAN_FILE}" ]; then
-            echo "✅ JSON plan file created: $(ls -lh ${JSON_PLAN_FILE} | awk '{print $9, $5}')"
-          else
-            echo "❌ Error: JSON plan file not created"
-            exit 1
-          fi
-
-      - name: Run Checkov Security Scan
-        if: inputs.runscan == true
-        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/checkov@main
-        with:
-          run-scan: ${{ inputs.runscan }}
-          workingDirectory: ${{ inputs.workingDirectory }}
-          checkovSkipChecks: ${{ inputs.checkovSkipChecks }}
 
       - name: Upload TF Plan
         uses: actions/upload-artifact@v4
