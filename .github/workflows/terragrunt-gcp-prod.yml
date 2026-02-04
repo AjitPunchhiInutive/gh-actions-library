@@ -31,11 +31,11 @@ on:
         required: false
         type: string
         default: "0.68.16"
-      runSecurityScan:
-        description: "Enable or disable TFSec security scan"
-        required: false
-        type: boolean
-        default: true
+      # runSecurityScan:
+      #   description: "Enable or disable TFSec security scan"
+      #   required: false
+      #   type: boolean
+      #   default: true
     secrets:
       TERRAGRUNT_GITHUB_ORG_TOKEN:
         required: true
@@ -135,7 +135,6 @@ jobs:
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/tfsec@main
         with:
           working-directory: ${{ inputs.workingDirectory }}
-          runSecurityScan: ${{ inputs.runSecurityScan }}
 
       # ── Plan ──────────────────────────────────────────────────────────────
       - name: Terragrunt Plan
