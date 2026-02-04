@@ -127,7 +127,7 @@ jobs:
 
       # ── Security Scan with TFSec ──────────────────────────────────────────
       - name: TFSec Security Scan
-        uses: ./.github/actions/tfsec
+        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/gcp/tfsec@main
         with:
           working-directory: ${{ inputs.workingDirectory }}
 
