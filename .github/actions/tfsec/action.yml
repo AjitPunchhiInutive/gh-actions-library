@@ -1,0 +1,205 @@
+name: "TFSec Security Scan"
+description: "Run TFSec security analysis on Terraform/Terragrunt code"
+
+inputs:
+  working-directory:
+    description: "Directory to scan (relative to repository root)"
+    required: true
+  tfsec-version:
+    description: "TFSec version to install"
+    required: true
+    default: "1.28.13"
+  fail-on-severity:
+    description: "Minimum severity to fail the build (CRITICAL, HIGH, MEDIUM, LOW)"
+    required: false
+    default: "MEDIUM"
+  soft-fail:
+    description: "Whether to continue on security findings (true/false)"
+    required: false
+    default: "false"
+  format:
+    description: "Output format (default, json, checkstyle, junit, sarif, csv, gif)"
+    required: false
+    default: "default"
+  config-file:
+    description: "Path to custom tfsec config file"
+    required: false
+    default: ""
+  exclude-checks:
+    description: "Comma-separated list of checks to exclude"
+    required: false
+    default: ""
+
+outputs:
+  scan-result:
+    description: "Result of the security scan (passed/failed)"
+    value: ${{ steps.scan.outputs.result }}
+  findings-count:
+    description: "Number of security findings"
+    value: ${{ steps.scan.outputs.findings }}
+
+runs:
+  using: "composite"
+  steps:
+    # ── Install TFSec ─────────────────────────────────────────────────────
+    - name: Install TFSec
+      shell: bash
+      run: |
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo " Installing TFSec"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        if [ "${{ inputs.tfsec-version }}" == "latest" ]; then
+          echo "Installing latest version of TFSec..."
+          curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+        else
+          echo "Installing TFSec v${{ inputs.tfsec-version }}..."
+          wget -q "https://github.com/aquasecurity/tfsec/releases/download/v${{ inputs.tfsec-version }}/tfsec-linux-amd64" -O tfsec
+          chmod +x tfsec
+          sudo mv tfsec /usr/local/bin/tfsec
+        fi
+        
+        echo "━━━ TFSec Version ━━━"
+        tfsec --version
+
+    # ── Prepare Scan Configuration ────────────────────────────────────────
+    - name: Prepare Scan Configuration
+      shell: bash
+      run: |
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo " Scan Configuration"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Working Directory : ${{ inputs.working-directory }}"
+        echo "Minimum Severity  : ${{ inputs.fail-on-severity }}"
+        echo "Soft Fail Mode    : ${{ inputs.soft-fail }}"
+        echo "Output Format     : ${{ inputs.format }}"
+        
+        if [ -n "${{ inputs.exclude-checks }}" ]; then
+          echo "Excluded Checks   : ${{ inputs.exclude-checks }}"
+        fi
+        
+        if [ -n "${{ inputs.config-file }}" ] && [ -f "${{ inputs.config-file }}" ]; then
+          echo "Config File       : ${{ inputs.config-file }}"
+        fi
+
+    # ── Run TFSec Scan ────────────────────────────────────────────────────
+    - name: Run TFSec Security Scan
+      id: scan
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo " Running TFSec Security Scan"
+        echo " Scanning: $(pwd)"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        # Build tfsec command
+        TFSEC_CMD="tfsec . --format ${{ inputs.format }}"
+        
+        # Add minimum severity
+        if [ "${{ inputs.fail-on-severity }}" != "" ]; then
+          TFSEC_CMD="$TFSEC_CMD --minimum-severity ${{ inputs.fail-on-severity }}"
+        fi
+        
+        # Add config file if specified
+        if [ -n "${{ inputs.config-file }}" ] && [ -f "${{ inputs.config-file }}" ]; then
+          TFSEC_CMD="$TFSEC_CMD --config-file ${{ inputs.config-file }}"
+        fi
+        
+        # Add excluded checks if specified
+        if [ -n "${{ inputs.exclude-checks }}" ]; then
+          IFS=',' read -ra CHECKS <<< "${{ inputs.exclude-checks }}"
+          for check in "${CHECKS[@]}"; do
+            TFSEC_CMD="$TFSEC_CMD --exclude $check"
+          done
+        fi
+        
+        # Add soft-fail if enabled
+        if [ "${{ inputs.soft-fail }}" == "true" ]; then
+          TFSEC_CMD="$TFSEC_CMD --soft-fail"
+        fi
+        
+        echo "Command: $TFSEC_CMD"
+        echo ""
+        
+        # Run tfsec and capture output
+        set +e
+        SCAN_OUTPUT=$($TFSEC_CMD 2>&1)
+        SCAN_EXIT_CODE=$?
+        set -e
+        
+        echo "$SCAN_OUTPUT"
+        
+        # Extract findings count
+        FINDINGS_COUNT=$(echo "$SCAN_OUTPUT" | grep -oP '\d+ potential problems detected' | grep -oP '\d+' || echo "0")
+        echo "findings=$FINDINGS_COUNT" >> $GITHUB_OUTPUT
+        
+        # Determine result
+        if [ $SCAN_EXIT_CODE -eq 0 ]; then
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Security Scan: PASSED"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "result=passed" >> $GITHUB_OUTPUT
+          exit 0
+        else
+          if [ "${{ inputs.soft-fail }}" == "true" ]; then
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Security Scan: FAILED (Soft-fail enabled)"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "result=failed-soft" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Security Scan: FAILED"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "result=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        fi
+
+    # ── Generate JSON Report ──────────────────────────────────────────────
+    - name: Generate JSON Report
+      if: always()
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo " Generating JSON Report"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        REPORT_FILE="tfsec-report.json"
+        
+        # Build command for JSON output
+        TFSEC_CMD="tfsec . --format json --out $REPORT_FILE"
+        
+        if [ -n "${{ inputs.config-file }}" ] && [ -f "${{ inputs.config-file }}" ]; then
+          TFSEC_CMD="$TFSEC_CMD --config-file ${{ inputs.config-file }}"
+        fi
+        
+        if [ -n "${{ inputs.exclude-checks }}" ]; then
+          IFS=',' read -ra CHECKS <<< "${{ inputs.exclude-checks }}"
+          for check in "${CHECKS[@]}"; do
+            TFSEC_CMD="$TFSEC_CMD --exclude $check"
+          done
+        fi
+        
+        set +e
+        eval $TFSEC_CMD --soft-fail
+        set -e
+        
+        if [ -f "$REPORT_FILE" ]; then
+          echo "Report generated: $REPORT_FILE"
+          ls -lh "$REPORT_FILE"
+        else
+          echo "Failed to generate report"
+        fi
+
+    # ── Upload Report Artifact ────────────────────────────────────────────
+    - name: Upload Security Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: tfsec-security-report-${{ github.run_id }}
+        path: ${{ inputs.working-directory }}/tfsec-report.json
+        retention-days: 30
+        if-no-files-found: warn

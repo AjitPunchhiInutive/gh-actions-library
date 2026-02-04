@@ -125,6 +125,12 @@ jobs:
           terragrunt hclfmt --terragrunt-check || echo "HCL format check completed"
           terraform fmt -check -recursive || echo "TF format check completed"
 
+      # ── Security Scan with TFSec ──────────────────────────────────────────
+      - name: TFSec Security Scan
+        uses: ./.github/actions/tfsec
+        with:
+          working-directory: ${{ inputs.workingDirectory }}
+
       # ── Plan ──────────────────────────────────────────────────────────────
       - name: Terragrunt Plan
         working-directory: ${{ inputs.workingDirectory }}
