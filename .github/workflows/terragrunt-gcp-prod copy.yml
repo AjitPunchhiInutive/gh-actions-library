@@ -1,3 +1,8 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Terragrunt Action Workflow - GCP Prod
+# Handles: Plan → Manual Approval → Apply
+# ─────────────────────────────────────────────────────────────────────────────
+
 name: Terragrunt Action Workflow GCP Prod
 
 on:
@@ -26,11 +31,11 @@ on:
         required: false
         type: string
         default: "0.68.16"
-      runSecurityScan:
-        description: "Enable or disable TFSec security scan"
-        required: false
-        type: boolean
-        default: true
+      # runSecurityScan:
+      #   description: "Enable or disable TFSec security scan"
+      #   required: false
+      #   type: boolean
+      #   default: true
     secrets:
       GCP_SERVICE_ACCOUNT_EMAIL:
         required: true
@@ -50,7 +55,6 @@ jobs:
     permissions:
       contents: "read"
       id-token: "write"
-      security-events: "write" 
     env:
       GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL}}
       TF_LOG: ${{ inputs.tfLog }}
@@ -83,7 +87,6 @@ jobs:
       - name: GCP Auth
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/gcp/auth@main
         with:
-          environment: ${{ inputs.environment }}
           project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
           workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
           gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
@@ -96,7 +99,6 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Current Directory   : $(pwd)"
           echo "Working Directory   : ${{ inputs.workingDirectory }}"
-          echo "Environment         : ${{ inputs.environment }}"
           echo "Directory Contents  :"
           ls -la "${{ inputs.workingDirectory }}" || echo "Directory not found"
           echo "Terragrunt Files    :"
@@ -133,53 +135,9 @@ jobs:
 
       # ── Security Scan with TFSec ──────────────────────────────────────────
       - name: TFSec Security Scan
-        if: inputs.runSecurityScan
-        working-directory: ${{ inputs.workingDirectory }}
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo " TFSec Security Scan"
-          echo " Directory: $(pwd)"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          
-          # Create reports directory
-          mkdir -p ../reports
-          
-          # Install TFSec
-          echo "Installing TFSec..."
-          curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
-          sudo mv tfsec /usr/local/bin/
-          
-          # Run TFSec scan with multiple output formats
-          echo "Running TFSec scan..."
-          
-          # JSON report
-          tfsec . --format json --out ../reports/tfsec-results.json --soft-fail || true
-          
-          # SARIF report for GitHub Security tab
-          tfsec . --format sarif --out ../reports/tfsec-results.sarif --soft-fail || true
-          
-          # Human-readable report
-          tfsec . --format lovely --out ../reports/tfsec-results.html --soft-fail || true
-          
-          # Console output
-          tfsec . --format default --soft-fail || echo "TFSec scan completed"
-          
-          echo " TFSec scan completed. Reports saved to ../reports/"
-
-      # ── Upload TFSec Results ──────────────────────────────────────────────
-      - name: Upload TFSec Results
-        if: inputs.runSecurityScan && always()
-        uses: actions/upload-artifact@v4
+        uses: AjitPunchhiInutive/gh-actions-library/.github/actions/tfsec@main
         with:
-          name: tfsec-results-${{ inputs.environment }}
-          path: reports/
-          retention-days: 30
-
-      - name: Upload SARIF to GitHub Security
-        if: inputs.runSecurityScan && always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: reports/tfsec-results.sarif
+          working-directory: ${{ inputs.workingDirectory }}
 
       # ── Plan ──────────────────────────────────────────────────────────────
       - name: Terragrunt Plan
@@ -220,7 +178,7 @@ jobs:
     needs: terragrunt-plan
     runs-on: ubuntu-latest
     environment:
-      name: ${{ inputs.environment }}-approval 
+      name: prod
       url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Manual Approval Gate
@@ -231,7 +189,7 @@ jobs:
           echo " Environment      : ${{ inputs.environment }}"
           echo " Working Directory: ${{ inputs.workingDirectory }}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "✅ Approval granted — proceeding to apply"
+          echo " Approval granted — proceeding to apply"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # APPLY JOB
@@ -239,7 +197,7 @@ jobs:
   terragrunt-apply:
     needs: manual-approval
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: terragrunt
     permissions:
       contents: "read"
       id-token: "write"
@@ -275,10 +233,8 @@ jobs:
       - name: GCP Auth
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/gcp/auth@main
         with:
-          environment: ${{ inputs.environment }} 
           project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
           workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       # ── Download Plan ─────────────────────────────────────────────────────
       - name: Download TF Plan
@@ -329,3 +285,4 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo " Apply completed successfully"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        

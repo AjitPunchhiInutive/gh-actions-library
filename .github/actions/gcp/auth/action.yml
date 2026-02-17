@@ -1,3 +1,48 @@
+# name: GCP Auth via Workload Identity
+# description: Authenticates to GCP using Workload Identity Federation
+
+# inputs:
+#   environment:
+#     description: The target environment (e.g., dev, prod)
+#     required: true
+
+#   project_id:
+#     description: The GCP Project ID
+#     required: true
+#     default: ""
+
+#   workload_identity_provider:
+#     description: GCP Workload Identity Provider resource path
+#     required: true
+#     default: ""
+
+#   gcp_service_account:
+#     description: (Optional) GCP Service Account email to impersonate
+#     required: true
+#     default: ""
+
+# runs:
+#   using: "composite"
+#   steps:
+#     - name: Authenticate to GCP
+#       uses: google-github-actions/auth@v2
+#       with:
+#         project_id: ${{ inputs.project_id }}
+#         workload_identity_provider: ${{ inputs.workload_identity_provider }}
+#         service_account: ${{ inputs.gcp_service_account }}
+#     - name: Setup GCloud CLI
+#       uses: google-github-actions/setup-gcloud@v1
+#       with:
+#         version: 'latest'
+#     - name: Confirm Identity
+#       shell: bash
+#       run: |
+#         echo "Authenticated to GCP using environment: ${{ inputs.environment }}, projectId: ${{ inputs.project_id }}"
+#         gcloud config list
+#         gcloud auth list
+#         gcloud config get-value account
+
+
 name: GCP Auth via Workload Identity
 description: Authenticates to GCP using Workload Identity Federation
 
@@ -9,35 +54,60 @@ inputs:
   project_id:
     description: The GCP Project ID
     required: true
-    default: "melodic-furnace-403022"
 
   workload_identity_provider:
     description: GCP Workload Identity Provider resource path
     required: true
-    default: "projects/888274222600/locations/global/workloadIdentityPools/my-test-pool/providers/github-provider"
 
   gcp_service_account:
-    description: (Optional) GCP Service Account email to impersonate
+    description: GCP Service Account email to impersonate
     required: true
-    default: "github-actions@melodic-furnace-403022.iam.gserviceaccount.com"
 
 runs:
   using: "composite"
   steps:
+    - name: Validate Required Inputs
+      shell: bash
+      run: |
+        echo "Validating required inputs..."
+        
+        if [ -z "${{ inputs.project_id }}" ]; then
+          echo " ERROR: project_id input is required but not provided"
+          exit 1
+        fi
+        
+        if [ -z "${{ inputs.workload_identity_provider }}" ]; then
+          echo " ERROR: workload_identity_provider input is required but not provided"
+          exit 1
+        fi
+        
+        if [ -z "${{ inputs.gcp_service_account }}" ]; then
+          echo " ERROR: gcp_service_account input is required but not provided"
+          exit 1
+        fi
+        
+        echo "✅ All required inputs provided"
+        echo "Environment: ${{ inputs.environment }}"
+        echo "Project ID: ${{ inputs.project_id }}"
+        echo "Service Account: ${{ inputs.gcp_service_account }}"
+        echo "WIF Provider: ${{ inputs.workload_identity_provider }}"
+
     - name: Authenticate to GCP
       uses: google-github-actions/auth@v2
       with:
         project_id: ${{ inputs.project_id }}
         workload_identity_provider: ${{ inputs.workload_identity_provider }}
         service_account: ${{ inputs.gcp_service_account }}
+
     - name: Setup GCloud CLI
-      uses: google-github-actions/setup-gcloud@v1
+      uses: google-github-actions/setup-gcloud@v2
       with:
         version: 'latest'
+
     - name: Confirm Identity
       shell: bash
       run: |
-        echo "Authenticated to GCP using environment: ${{ inputs.environment }}, projectId: ${{ inputs.project_id }}"
+        echo "✅ Authenticated to GCP using environment: ${{ inputs.environment }}, projectId: ${{ inputs.project_id }}"
         gcloud config list
         gcloud auth list
         gcloud config get-value account
