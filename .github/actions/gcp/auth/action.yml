@@ -18,7 +18,7 @@ inputs:
 
   gcp_service_account:
     description: (Optional) GCP Service Account email to impersonate
-    required: false
+    required: true
     default: "github-actions@melodic-furnace-403022.iam.gserviceaccount.com"
 
 runs:

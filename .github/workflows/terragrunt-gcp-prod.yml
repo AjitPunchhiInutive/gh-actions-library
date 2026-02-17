@@ -37,7 +37,7 @@ on:
       #   type: boolean
       #   default: true
     secrets:
-      TERRAGRUNT_GITHUB_ORG_TOKEN:
+      GCP_SERVICE_ACCOUNT_EMAIL:
         required: true
       GCP_PROD_PROJECT_ID:
         required: true
@@ -54,7 +54,7 @@ jobs:
       contents: "read"
       id-token: "write"
     env:
-      TERRAGRUNT_GITHUB_ORG_TOKEN: ${{ secrets.TERRAGRUNT_GITHUB_ORG_TOKEN }}
+      GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL}}
       TF_LOG: ${{ inputs.tfLog }}
       TF_IN_AUTOMATION: "true"
 
@@ -87,6 +87,7 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
           workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       # ── Debug ─────────────────────────────────────────────────────────────
       - name: Debug - Check Directory Structure
@@ -199,7 +200,7 @@ jobs:
       contents: "read"
       id-token: "write"
     env:
-      TERRAGRUNT_GITHUB_ORG_TOKEN: ${{ secrets.TERRAGRUNT_GITHUB_ORG_TOKEN }}
+      GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL}}
       TF_LOG: ${{ inputs.tfLog }}
       TF_IN_AUTOMATION: "true"
 
@@ -282,3 +283,4 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo " Apply completed successfully"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
