@@ -98,7 +98,7 @@ jobs:
       - name: GCP Auth
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/gcp/auth@main
         with:
-          environment: ${{ inputs.environment }}
+          #environment: ${{ inputs.environment }}
           project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
           workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
           gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
@@ -111,7 +111,7 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Current Directory   : $(pwd)"
           echo "Working Directory   : ${{ inputs.workingDirectory }}"
-          echo "Environment         : ${{ inputs.environment }}"
+          #echo "Environment         : ${{ inputs.environment }}"
           echo "Directory Contents  :"
           ls -la "${{ inputs.workingDirectory }}" || echo "Directory not found"
           echo "Terragrunt Files    :"
