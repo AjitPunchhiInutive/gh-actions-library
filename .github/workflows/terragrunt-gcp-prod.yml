@@ -41,26 +41,23 @@ on:
       SSH_PRIVATE_KEY:
         required: true
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 # PLAN JOB
 # ─────────────────────────────────────────────────────────────────────────────
 jobs:
   terragrunt-plan:
     runs-on: ubuntu-latest
-    env:
-      GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
-      GCP_PROD_PROJECT_ID: ${{ secrets.GCP_PROD_PROJECT_ID }}
-      GCP_PROD_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      TF_LOG: ${{ inputs.tfLog }}
-      TF_IN_AUTOMATION: "true"
-    # environment:
-    #   name: ${{ inputs.environment }}
+    environment:
+      name: ${{ inputs.environment }}
     permissions:
       contents: "read"
       id-token: "write"
       security-events: "write" 
-    
+    env:
+      GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+      TF_LOG: ${{ inputs.tfLog }}
+      TF_IN_AUTOMATION: "true"
 
     steps:
       - name: Setup SSH Key for Private Module Access
