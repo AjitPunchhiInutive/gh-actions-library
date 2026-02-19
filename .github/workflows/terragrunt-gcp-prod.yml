@@ -48,16 +48,18 @@ on:
 # ─────────────────────────────────────────────────────────────────────────────
 jobs:
   terragrunt-plan:
-    needs: manual-approval
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ inputs.environment }}
+    # environment:
+    #   name: ${{ inputs.environment }}
     permissions:
       contents: "read"
       id-token: "write"
       security-events: "write" 
     env:
-      GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL}}
+      GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+      GCP_PROD_PROJECT_ID: ${{ secrets.GCP_PROD_PROJECT_ID }}
+      GCP_PROD_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       TF_LOG: ${{ inputs.tfLog }}
       TF_IN_AUTOMATION: "true"
 
