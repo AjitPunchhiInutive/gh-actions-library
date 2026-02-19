@@ -234,7 +234,7 @@ jobs:
     needs: terragrunt-plan
     runs-on: ubuntu-latest
     environment:
-      #name: ${{ inputs.environment }}
+      name: ${{ inputs.environment }}
       url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Manual Approval Gate
@@ -253,7 +253,7 @@ jobs:
   terragrunt-apply:
     needs: manual-approval
     runs-on: ubuntu-latest
-    #environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment }}
     permissions:
       contents: "read"
       id-token: "write"
