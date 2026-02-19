@@ -48,16 +48,14 @@ on:
 jobs:
   terragrunt-plan:
     runs-on: ubuntu-latest
-    # environment:
-    #   name: ${{ inputs.environment }}
+    environment:
+      name: ${{ inputs.environment }}
     permissions:
       contents: "read"
       id-token: "write"
       security-events: "write" 
     env:
       GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
-      GCP_PROD_PROJECT_ID: ${{ secrets.GCP_PROD_PROJECT_ID }}
-      GCP_PROD_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
       TF_LOG: ${{ inputs.tfLog }}
       TF_IN_AUTOMATION: "true"
 
@@ -98,6 +96,7 @@ jobs:
       - name: GCP Auth
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/gcp/auth@main
         with:
+          environment: ${{ inputs.environment }}
           project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
           workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
           gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
@@ -110,7 +109,7 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Current Directory   : $(pwd)"
           echo "Working Directory   : ${{ inputs.workingDirectory }}"
-          #echo "Environment         : ${{ inputs.environment }}"
+          echo "Environment         : ${{ inputs.environment }}"
           echo "Directory Contents  :"
           ls -la "${{ inputs.workingDirectory }}" || echo "Directory not found"
           echo "Terragrunt Files    :"
