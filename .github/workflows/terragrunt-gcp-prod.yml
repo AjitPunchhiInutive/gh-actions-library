@@ -49,8 +49,8 @@ on:
 jobs:
   terragrunt-plan:
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ inputs.environment }}
+    # environment:
+    #   name: ${{ inputs.environment }}
     permissions:
       contents: "read"
       id-token: "write"
@@ -234,7 +234,7 @@ jobs:
     needs: terragrunt-plan
     runs-on: ubuntu-latest
     environment:
-      name: ${{ inputs.environment }}-approval
+      name: ${{ inputs.environment }}
       url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Manual Approval Gate
