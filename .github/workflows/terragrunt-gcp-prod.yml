@@ -7,10 +7,10 @@ on:
         description: "Path to the working directory"
         required: true
         type: string
-      environment:
-        description: "Name of the environment"
-        required: true
-        type: string
+      # environment:
+      #   description: "Name of the environment"
+      #   required: true
+      #   type: string
       tfLog:
         description: "Terraform log level"
         required: false
