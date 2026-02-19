@@ -7,10 +7,10 @@ on:
         description: "Path to the working directory"
         required: true
         type: string
-      # environment:
-      #   description: "Name of the environment"
-      #   required: true
-      #   type: string
+      environment:
+        description: "Name of the environment"
+        required: true
+        type: string
       tfLog:
         description: "Terraform log level"
         required: false
@@ -98,7 +98,6 @@ jobs:
       - name: GCP Auth
         uses: AjitPunchhiInutive/gh-actions-library/.github/actions/gcp/auth@main
         with:
-          #environment: ${{ inputs.environment }}
           project_id: ${{ secrets.GCP_PROD_PROJECT_ID }}
           workload_identity_provider: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
           gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}

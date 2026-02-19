@@ -47,9 +47,9 @@ name: GCP Auth via Workload Identity
 description: Authenticates to GCP using Workload Identity Federation
 
 inputs:
-  environment:
-    description: The target environment (e.g., dev, prod)
-    required: true
+  # environment:
+  #   description: The target environment (e.g., dev, prod)
+  #   required: false
 
   project_id:
     description: The GCP Project ID
@@ -86,8 +86,7 @@ runs:
           exit 1
         fi
         
-        echo "✅ All required inputs provided"
-        echo "Environment: ${{ inputs.environment }}"
+        echo "All required inputs provided"
         echo "Project ID: ${{ inputs.project_id }}"
         echo "Service Account: ${{ inputs.gcp_service_account }}"
         echo "WIF Provider: ${{ inputs.workload_identity_provider }}"
