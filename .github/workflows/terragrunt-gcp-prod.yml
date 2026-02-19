@@ -56,6 +56,8 @@ jobs:
       security-events: "write" 
     env:
       GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+      GCP_PROD_PROJECT_ID: ${{ secrets.GCP_PROD_PROJECT_ID }}
+      GCP_PROD_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_PROD_WORKLOAD_IDENTITY_PROVIDER }}
       TF_LOG: ${{ inputs.tfLog }}
       TF_IN_AUTOMATION: "true"
 
