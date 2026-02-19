@@ -48,6 +48,7 @@ on:
 # ─────────────────────────────────────────────────────────────────────────────
 jobs:
   terragrunt-plan:
+    needs: manual-approval
     runs-on: ubuntu-latest
     environment:
       name: ${{ inputs.environment }}
