@@ -1,0 +1,149 @@
+name: Terraform Action Workflow Template
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'bootstrap/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'bootstrap/**'
+
+env:
+  TF_VERSION:  "1.6.3"
+  WORKING_DIR: "bootstrap"
+  ENVIRONMENT: "dev"
+
+jobs:
+
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key for private module access
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.GCP_TERRAFORM_MODULES_SSH_KEY }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS_JSON }}
+
+      # ── Step 1: Install tfsec ──────────────────────────────────────
+      - name: Install tfsec
+        run: |
+          curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+          sudo mv tfsec /usr/local/bin/tfsec
+          tfsec --version
+
+      # ── Step 2: Run tfsec and print results in the logs ────────────
+      # soft-fail means the pipeline will NOT stop if issues are found
+      # Remove --soft-fail if you want the pipeline to stop on issues
+      - name: Run tfsec and show results
+        run: |
+          echo "Running tfsec security scan..."
+          echo "Scanning directory: $(pwd)"
+          echo ""
+          tfsec . --soft-fail
+          echo ""
+          echo "tfsec scan complete"
+
+      # ── Step 3: Save tfsec results as SARIF for GitHub Security tab
+      - name: Run tfsec and save SARIF report
+        uses: aquasecurity/tfsec-sarif-action@v0.1.4
+        if: always()
+        with:
+          working_directory: ${{ env.WORKING_DIR }}
+          sarif_file: tfsec.sarif
+          
+
+      # ── Step 4: Upload results to GitHub Security tab ─────────────
+      # View results at: Repo > Security > Code Scanning Alerts
+      - name: Upload tfsec results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: tfsec.sarif
+
+      # ── Step 5: Save tfsec report as downloadable artifact ────────
+      - name: Save tfsec report as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tfsec-report
+          path: tfsec.sarif
+          retention-days: 30
+
+      # ── Terraform steps run after tfsec ───────────────────────────
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -var-file=environments/${{ env.ENVIRONMENT }}.tfvars -out=tfplan
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.WORKING_DIR }}/tfplan
+
+  terraform-apply:
+    name: Terraform Apply
+    needs: terraform-plan
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: dev
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key for private module access
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.GCP_TERRAFORM_MODULES_SSH_KEY }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS_JSON }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.WORKING_DIR }}
+
+      - name: Terraform Apply (reviewed plan)
+        run: terraform apply tfplan
