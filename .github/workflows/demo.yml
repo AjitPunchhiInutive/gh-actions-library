@@ -14,13 +14,16 @@ on:
       - 'bootstrap/**'
 
 env:
-  TF_VERSION:   "1.6.3"
-  WORKING_DIR:  "bootstrap"
-  ENVIRONMENT:  "dev"
-  TFSEC_VERSION: "1.28.6"     # Pin a specific version to avoid surprises
+  TF_VERSION:    "1.6.3"
+  WORKING_DIR:   "bootstrap"
+  ENVIRONMENT:   "dev"
+  TFSEC_VERSION: "1.28.6"
 
 jobs:
 
+# ─────────────────────────────────────────────────────────────────────────────
+# PLAN — Runs on every PR and push to main
+# ─────────────────────────────────────────────────────────────────────────────
   terraform-plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
@@ -47,28 +50,31 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS_JSON }}
 
-      # ── Install tfsec binary directly from GitHub releases ────────
-      # Using wget is more reliable than the curl install script
+      # ── Install tfsec ──────────────────────────────────────────────
       - name: Install tfsec
         run: |
           wget -q https://github.com/aquasecurity/tfsec/releases/download/v${{ env.TFSEC_VERSION }}/tfsec-linux-amd64 -O tfsec
           chmod +x tfsec
           sudo mv tfsec /usr/local/bin/tfsec
-          echo "tfsec installed successfully"
           tfsec --version
 
       # ── Run tfsec and print results in logs ───────────────────────
+      # soft-fail means pipeline will NOT stop if issues are found
+      # Change --soft-fail to hard fail if you want pipeline to stop
       - name: Run tfsec scan
         run: |
-          echo "Scanning directory: $(pwd)"
+          echo "scanning directory: $(pwd)"
           tfsec . --soft-fail
           echo "tfsec scan complete"
 
-      # ── Upload results to GitHub Security tab ─────────────────────
+      # ── Save results as SARIF for GitHub Security tab ─────────────
       - name: Save tfsec SARIF report
+        if: always()
         run: |
           tfsec . --format sarif --soft-fail > tfsec.sarif || true
 
+      # ── Upload to GitHub Security tab ─────────────────────────────
+      # View at: Repo > Security > Code Scanning Alerts
       - name: Upload tfsec results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always()
@@ -100,6 +106,9 @@ jobs:
           name: tfplan
           path: ${{ env.WORKING_DIR }}/tfplan
 
+# ─────────────────────────────────────────────────────────────────────────────
+# APPLY — Runs ONLY when merged to main
+# ─────────────────────────────────────────────────────────────────────────────
   terraform-apply:
     name: Terraform Apply
     needs: terraform-plan
@@ -138,5 +147,5 @@ jobs:
           name: tfplan
           path: ${{ env.WORKING_DIR }}
 
-      - name: Terraform Apply (reviewed plan)
+      - name: Terraform Apply
         run: terraform apply tfplan
