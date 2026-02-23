@@ -14,9 +14,10 @@ on:
       - 'bootstrap/**'
 
 env:
-  TF_VERSION:  "1.6.3"
-  WORKING_DIR: "bootstrap"
-  ENVIRONMENT: "dev"
+  TF_VERSION:   "1.6.3"
+  WORKING_DIR:  "bootstrap"
+  ENVIRONMENT:  "dev"
+  TFSEC_VERSION: "1.28.6"     # Pin a specific version to avoid surprises
 
 jobs:
 
@@ -46,43 +47,35 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS_JSON }}
 
-      # ── Step 1: Install tfsec ──────────────────────────────────────
+      # ── Install tfsec binary directly from GitHub releases ────────
+      # Using wget is more reliable than the curl install script
       - name: Install tfsec
         run: |
-          curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+          wget -q https://github.com/aquasecurity/tfsec/releases/download/v${{ env.TFSEC_VERSION }}/tfsec-linux-amd64 -O tfsec
+          chmod +x tfsec
           sudo mv tfsec /usr/local/bin/tfsec
+          echo "tfsec installed successfully"
           tfsec --version
 
-      # ── Step 2: Run tfsec and print results in the logs ────────────
-      # soft-fail means the pipeline will NOT stop if issues are found
-      # Remove --soft-fail if you want the pipeline to stop on issues
-      - name: Run tfsec and show results
+      # ── Run tfsec and print results in logs ───────────────────────
+      - name: Run tfsec scan
         run: |
-          echo "Running tfsec security scan..."
           echo "Scanning directory: $(pwd)"
-          echo ""
           tfsec . --soft-fail
-          echo ""
           echo "tfsec scan complete"
 
-      # ── Step 3: Save tfsec results as SARIF for GitHub Security tab
-      - name: Run tfsec and save SARIF report
-        uses: aquasecurity/tfsec-sarif-action@v0.1.4
-        if: always()
-        with:
-          working_directory: ${{ env.WORKING_DIR }}
-          sarif_file: tfsec.sarif
-          
+      # ── Upload results to GitHub Security tab ─────────────────────
+      - name: Save tfsec SARIF report
+        run: |
+          tfsec . --format sarif --soft-fail > tfsec.sarif || true
 
-      # ── Step 4: Upload results to GitHub Security tab ─────────────
-      # View results at: Repo > Security > Code Scanning Alerts
       - name: Upload tfsec results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: tfsec.sarif
 
-      # ── Step 5: Save tfsec report as downloadable artifact ────────
+      # ── Save report as downloadable artifact ──────────────────────
       - name: Save tfsec report as artifact
         uses: actions/upload-artifact@v4
         if: always()
